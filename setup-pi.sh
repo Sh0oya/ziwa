@@ -109,7 +109,8 @@ command -v xset >/dev/null 2>&1 && { xset s off; xset -dpms; xset s noblank; } 2
 command -v unclutter >/dev/null 2>&1 && unclutter -idle 0.5 -root &
 exec "$CHROME" --kiosk --noerrdialogs --disable-infobars --disable-session-crashed-bubble \\
   --disable-features=Translate --check-for-update-interval=31536000 \\
-  --overscroll-history-navigation=0 --app="$URL"
+  --overscroll-history-navigation=0 --password-store=basic --no-first-run \\
+  --app="$URL"
 KIOSK
   chmod +x "$APP_DIR/kiosk.sh"
   ok "kiosk.sh créé"
