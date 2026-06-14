@@ -61,8 +61,27 @@ KIOSK
 chmod +x "$APP_DIR/kiosk-cage.sh"
 ok "kiosk-cage.sh (cog)"
 
-# Note : le curseur est masqué côté app via `* { cursor: none }` dans styles.css
-# (cog affiche l'app en plein écran → curseur invisible partout). Simple et fiable.
+# ── 4b) Curseur invisible : thème "blank" (curseur Xcursor 1x1 transparent) ─
+# Le CSS `cursor:none` masque le curseur DANS la page, mais cage en dessine un
+# au contact tactile. On neutralise via un thème de curseur vide, généré en
+# Python pur (xcursorgen n'existe pas en paquet sur Debian trixie).
+say "Curseur invisible (thème blank)"
+mkdir -p "$HOME/.icons/blank/cursors"
+python3 - <<'PY' 2>/dev/null && ok "thème curseur 'blank' généré" || warn "python3 indisponible — curseur cage peut rester (cosmétique)"
+import struct, os
+p = os.path.expanduser("~/.icons/blank/cursors/left_ptr")
+data  = b'Xcur' + struct.pack('<III', 16, 1, 1)
+data += struct.pack('<III', 0xfffd0002, 1, 28)
+data += struct.pack('<IIIII', 36, 0xfffd0002, 1, 1, 0)
+data += struct.pack('<IIIII', 1, 1, 0, 0, 0)
+data += struct.pack('<I', 0)
+open(p,'wb').write(data)
+for c in ["default","arrow","pointer","hand1","hand2","xterm","text","watch","crosshair"]:
+    d = os.path.expanduser("~/.icons/blank/cursors/"+c)
+    if os.path.lexists(d): os.remove(d)
+    os.symlink("left_ptr", d)
+open(os.path.expanduser("~/.icons/blank/index.theme"),"w").write("[Icon Theme]\nName=blank\n")
+PY
 
 # ── 5) Auto-login sur tty1 + lancement de cage depuis le profil ─────────
 # Méthode robuste sur Pi : getty connecte "ziwa" automatiquement sur tty1, ce
@@ -83,14 +102,14 @@ ExecStart=-/sbin/agetty --autologin $APP_USER --noclear %I \$TERM
 UNIT
 
 # lancement de cage au login sur tty1 uniquement (et pas en SSH !)
-# Curseur masqué via le thème "blank" transparent (XCURSOR_SIZE=0 ne suffit pas).
 PROFILE="$HOME/.bash_profile"
-# nettoyer une éventuelle ancienne version du bloc (méthode XCURSOR_SIZE)
+# nettoyer une éventuelle ancienne version du bloc
 sed -i '/ZIWA_KIOSK/,+4d' "$PROFILE" 2>/dev/null || true
 cat >> "$PROFILE" <<PROF
 
 # ZIWA_KIOSK — lancer le kiosque uniquement sur la console physique (tty1)
 if [ "\$(tty)" = "/dev/tty1" ] && [ -z "\${WAYLAND_DISPLAY:-}" ]; then
+  export XCURSOR_THEME=blank XCURSOR_PATH=\$HOME/.icons:/usr/share/icons
   exec cage -s -- "$APP_DIR/kiosk-cage.sh"
 fi
 PROF
