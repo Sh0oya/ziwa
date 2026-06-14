@@ -97,7 +97,7 @@
     sessions: { morning: null, snack: null, evening: null },
     lastShot: null, now: Date.now(), nowOffset: 0,
     view: 'main', modal: null, moment: null, toast: null, saver: false,
-    preview: null, histRange: 30, historyRows: [],
+    preview: null, histRange: 30, historyRows: [], settingsDraft: {},
   };
   // horloge (avec décalage QA optionnel ?now=HH:MM)
   function nowTs() { return Date.now() + (state.nowOffset || 0); }
@@ -232,6 +232,7 @@
     if (state.moment) appendHTML(root, momentHTML(state.moment));
     if (state.toast) appendHTML(root, `<div class="toast ${state.toast.tone || ''}">${esc(state.toast.text)}</div>`);
     if (state.saver) appendHTML(root, saverHTML());
+    if (state.modal && state.modal.type === 'wheel') initWheels();
   }
 
   // ---- vue principale ----
@@ -332,6 +333,8 @@
     else if (m.type === 'event') sheet = eventSheet(m);
     else if (m.type === 'analysis') sheet = analysisSheet(m);
     else if (m.type === 'confirm') sheet = confirmSheet(m);
+    else if (m.type === 'wheel') sheet = wheelHTML(m);
+    else if (m.type === 'kbd') sheet = kbdHTML(m);
     return scrim + sheet;
   }
 
@@ -516,46 +519,65 @@
   }
 
   /* ---- réglages ---- */
-  function field(label, key, opts) {
-    opts = opts || {};
-    const a = [`data-setting="${key}"`, `type="${opts.type || 'text'}"`];
-    if (opts.step != null) a.push(`step="${opts.step}"`);
-    if (opts.min != null) a.push(`min="${opts.min}"`);
-    if (opts.max != null) a.push(`max="${opts.max}"`);
-    if (opts.type === 'number') a.push('inputmode="decimal"');
-    return `<div class="set-f ${opts.wide ? 'wide' : ''}"><label>${esc(label)}</label><div class="val"><input ${a.join(' ')} value="${esc(state.settings[key])}">${opts.unit ? `<span class="unit">${esc(opts.unit)}</span>` : ''}</div></div>`;
+  // Spécif. de chaque champ : 'num' → roue iPhone · 'time' → double roue · 'text' → clavier.
+  const SETTING_FIELDS = {
+    cat_name: { label: 'Prénom du chat', kind: 'text', wide: true },
+    morning_time: { label: 'Cible matin', kind: 'time' },
+    evening_time: { label: 'Cible soir', kind: 'time' },
+    snack_time: { label: 'Cible snack', kind: 'time' },
+    morning_dose_target: { label: 'Dose cible matin', kind: 'num', min: 0, max: 20, step: 0.25, unit: U },
+    evening_dose_target: { label: 'Dose cible soir', kind: 'num', min: 0, max: 20, step: 0.25, unit: U },
+    window_tolerance_h: { label: 'Tolérance fenêtre', kind: 'num', min: 0, max: 6, step: 0.5, unit: 'h' },
+    dose_unit: { label: 'Unité de dose', kind: 'text' },
+    insulin_type: { label: 'Type d’insuline', kind: 'text', wide: true },
+    cat_weight_kg: { label: 'Poids du chat', kind: 'num', min: 1, max: 15, step: 0.1, unit: 'kg' },
+    food_packet_weight_g: { label: 'Poids d’un paquet', kind: 'num', min: 10, max: 200, step: 1, unit: 'g' },
+    food_brand: { label: 'Marque aliment', kind: 'text', wide: true },
+    food_kcal_per_100g: { label: 'Kcal / 100 g', kind: 'num', min: 0, max: 300, step: 1, unit: 'kcal' },
+    food_protein_pct: { label: 'Protéines', kind: 'num', min: 0, max: 100, step: 0.5, unit: '%' },
+    food_fat_pct: { label: 'Lipides', kind: 'num', min: 0, max: 100, step: 0.5, unit: '%' },
+    food_carbs_pct: { label: 'Glucides', kind: 'num', min: 0, max: 100, step: 0.5, unit: '%' },
+    food_humidity_pct: { label: 'Humidité', kind: 'num', min: 0, max: 100, step: 1, unit: '%' },
+  };
+  function fieldUnit(f) { return typeof f.unit === 'function' ? f.unit() : (f.unit || ''); }
+  function setField(key) {
+    const f = SETTING_FIELDS[key], v = state.settingsDraft[key];
+    const disp = f.kind === 'num' ? nf(v) : v;
+    const unit = fieldUnit(f);
+    return `<div class="set-f ${f.wide ? 'wide' : ''}"><label>${esc(f.label)}</label>
+      <div class="val tap" data-act="setField" data-key="${key}"><span>${esc(disp)}</span>${unit ? `<span class="unit">${esc(unit)}</span>` : ''}</div></div>`;
   }
   function settingsHTML() {
-    const s = state.settings;
+    const s = state.settingsDraft;
     return `<div class="set">
       <div class="set-head"><button class="bk tap" data-act="back">←</button><div class="ttl">Réglages</div></div>
       <div class="set-cols">
         <div class="set-col">
           <h4>Horaires &amp; doses</h4>
           <div class="set-grid">
-            ${field('Prénom du chat', 'cat_name', { wide: true })}
-            ${field('Cible matin', 'morning_time', { type: 'time' })}
-            ${field('Cible soir', 'evening_time', { type: 'time' })}
-            ${field('Cible snack', 'snack_time', { type: 'time' })}
+            ${setField('cat_name')}
+            ${setField('morning_time')}
+            ${setField('evening_time')}
+            ${setField('snack_time')}
             <div class="set-f"><label>Snack activé</label><div class="val"><span id="snackLbl">${s.snack_enabled ? 'Activé' : 'Désactivé'}</span><span class="toggle tap ${s.snack_enabled ? 'on' : ''}" id="snackToggle" data-act="snackToggle"><i></i></span></div></div>
-            ${field('Dose cible matin', 'morning_dose_target', { type: 'number', step: '0.25', min: '0', unit: U() })}
-            ${field('Dose cible soir', 'evening_dose_target', { type: 'number', step: '0.25', min: '0', unit: U() })}
-            ${field('Tolérance fenêtre', 'window_tolerance_h', { type: 'number', step: '0.5', min: '0', unit: 'h' })}
-            ${field('Unité de dose', 'dose_unit', {})}
-            ${field('Type d’insuline', 'insulin_type', { wide: true })}
+            ${setField('morning_dose_target')}
+            ${setField('evening_dose_target')}
+            ${setField('window_tolerance_h')}
+            ${setField('dose_unit')}
+            ${setField('insulin_type')}
           </div>
         </div>
         <div class="set-col">
           <h4>Nutrition &amp; chat</h4>
           <div class="set-grid">
-            ${field('Poids du chat', 'cat_weight_kg', { type: 'number', step: '0.1', min: '0', unit: 'kg' })}
-            ${field('Poids d’un paquet', 'food_packet_weight_g', { type: 'number', step: '1', min: '1', unit: 'g' })}
-            ${field('Marque aliment', 'food_brand', { wide: true })}
-            ${field('Kcal / 100 g', 'food_kcal_per_100g', { type: 'number', step: '1', min: '0', unit: 'kcal' })}
-            ${field('Protéines', 'food_protein_pct', { type: 'number', step: '0.1', min: '0', unit: '%' })}
-            ${field('Lipides', 'food_fat_pct', { type: 'number', step: '0.1', min: '0', unit: '%' })}
-            ${field('Glucides', 'food_carbs_pct', { type: 'number', step: '0.1', min: '0', unit: '%' })}
-            ${field('Humidité', 'food_humidity_pct', { type: 'number', step: '1', min: '0', unit: '%' })}
+            ${setField('cat_weight_kg')}
+            ${setField('food_packet_weight_g')}
+            ${setField('food_brand')}
+            ${setField('food_kcal_per_100g')}
+            ${setField('food_protein_pct')}
+            ${setField('food_fat_pct')}
+            ${setField('food_carbs_pct')}
+            ${setField('food_humidity_pct')}
             <div class="set-f"><label>Besoin théorique</label><div class="val ro">${Math.round(s.cat_weight_kg * 50)}<span class="unit">kcal/j</span></div></div>
           </div>
         </div>
@@ -567,6 +589,119 @@
       </div>
     </div>`;
   }
+
+  /* ---- roue iPhone (picker) + clavier AZERTY ---- */
+  const ROW_H = 54;            // hauteur d'une ligne de roue (px)
+  function rangeValues(min, max, step) {
+    const out = []; const n = Math.round((max - min) / step);
+    for (let i = 0; i <= n; i++) out.push(Math.round((min + i * step) * 100) / 100);
+    return out;
+  }
+  function nearestIdx(values, v) {
+    let best = 0, bd = Infinity;
+    values.forEach((x, i) => { const d = Math.abs(x - v); if (d < bd) { bd = d; best = i; } });
+    return best;
+  }
+  function openPicker(key) {
+    const f = SETTING_FIELDS[key], v = state.settingsDraft[key];
+    if (f.kind === 'text') { state.modal = { type: 'kbd', key, title: f.label, value: String(v == null ? '' : v), shift: !String(v).length }; render(); return; }
+    if (f.kind === 'time') {
+      const [hh, mm] = String(v).split(':').map(Number);
+      const hours = rangeValues(0, 23, 1), mins = rangeValues(0, 55, 5);
+      state.modal = { type: 'wheel', key, title: f.label, kind: 'time',
+        columns: [{ values: hours, idx: nearestIdx(hours, hh), pad: true }, { values: mins, idx: nearestIdx(mins, mm), pad: true }] };
+      render(); return;
+    }
+    const values = rangeValues(f.min, f.max, f.step);
+    state.modal = { type: 'wheel', key, title: f.label, kind: 'num', unit: fieldUnit(f),
+      columns: [{ values, idx: nearestIdx(values, v) }] };
+    render();
+  }
+  function wheelHTML(m) {
+    const cols = m.columns.map((c, ci) => {
+      const opts = c.values.map((val, i) =>
+        `<div class="opt ${i === c.idx ? 'sel' : ''}" data-act="wheelTap" data-col="${ci}" data-i="${i}">${c.pad ? pad(val) : nf(val)}</div>`).join('');
+      return `<div class="wheel" data-col="${ci}"><div class="pad"></div>${opts}<div class="pad"></div></div>`;
+    }).join(m.kind === 'time' ? '<div class="wheel-sep">:</div>' : '');
+    return `<div class="sheet">
+      <div class="sheet-head"><div class="ttl">${esc(m.title)}</div><button class="x tap" data-act="closeModal">✕</button></div>
+      <div class="sheet-body">
+        <div class="picker">
+          <div class="pick-band"></div>
+          <div class="pick-wheels">${cols}</div>
+          ${m.unit ? `<div class="pick-unit">${esc(m.unit)}</div>` : ''}
+        </div>
+      </div>
+      <div class="sheet-foot">
+        <button class="btn ghost tap" data-act="closeModal">Annuler</button>
+        <button class="btn coral tap" data-act="wheelValidate">Valider</button>
+      </div>
+    </div>`;
+  }
+  // (ré)attache le défilement natif des roues après chaque render
+  function initWheels() {
+    const m = state.modal; if (!m || m.type !== 'wheel') return;
+    $$('.wheel').forEach(w => {
+      const ci = +w.dataset.col, col = m.columns[ci];
+      w.scrollTop = col.idx * ROW_H;
+      let t = null;
+      w.addEventListener('scroll', () => {
+        const i = Math.max(0, Math.min(col.values.length - 1, Math.round(w.scrollTop / ROW_H)));
+        if (i !== col.idx) {
+          col.idx = i;
+          w.querySelectorAll('.opt').forEach((o, k) => o.classList.toggle('sel', k === i));
+        }
+        clearTimeout(t); t = setTimeout(() => { w.scrollTo({ top: col.idx * ROW_H, behavior: 'smooth' }); }, 90);
+      }, { passive: true });
+    });
+  }
+  function wheelTap(node) {
+    const ci = +node.dataset.col, i = +node.dataset.i;
+    const w = $$('.wheel')[ci]; if (w) w.scrollTo({ top: i * ROW_H, behavior: 'smooth' });
+  }
+  function wheelValidate() {
+    const m = state.modal;
+    if (m.kind === 'time') {
+      const h = m.columns[0].values[m.columns[0].idx], mn = m.columns[1].values[m.columns[1].idx];
+      state.settingsDraft[m.key] = pad(h) + ':' + pad(mn);
+    } else {
+      state.settingsDraft[m.key] = m.columns[0].values[m.columns[0].idx];
+    }
+    state.modal = null; render();
+  }
+
+  // clavier AZERTY tactile (texte) — minuscule/majuscule, accents usuels, chiffres
+  const KBD_ROWS = [
+    ['a', 'z', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+    ['q', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'm'],
+    ['w', 'x', 'c', 'v', 'b', 'n', 'é', 'è', 'à', '-'],
+    ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+  ];
+  function kbdHTML(m) {
+    const tx = m.shift ? (s => s.toUpperCase()) : (s => s);
+    const rows = KBD_ROWS.map(r => `<div class="krow">${r.map(k =>
+      `<button class="key tap" data-act="kbdKey" data-k="${tx(k)}">${tx(k)}</button>`).join('')}</div>`).join('');
+    return `<div class="sheet kbd-sheet">
+      <div class="sheet-head"><div class="ttl">${esc(m.title)}</div><button class="x tap" data-act="closeModal">✕</button></div>
+      <div class="kbd-disp"><span>${esc(m.value) || '<i>—</i>'}</span><b class="caret"></b></div>
+      <div class="kbd">
+        ${rows}
+        <div class="krow">
+          <button class="key wide tap ${m.shift ? 'on' : ''}" data-act="kbdShift">⇧</button>
+          <button class="key spc tap" data-act="kbdKey" data-k=" ">espace</button>
+          <button class="key wide tap" data-act="kbdBack">⌫</button>
+        </div>
+      </div>
+      <div class="sheet-foot">
+        <button class="btn ghost tap" data-act="closeModal">Annuler</button>
+        <button class="btn coral tap" data-act="kbdOk">Valider</button>
+      </div>
+    </div>`;
+  }
+  function kbdKey(k) { const m = state.modal; m.value = (m.value || '') + k; m.shift = false; render(); }
+  function kbdBack() { const m = state.modal; m.value = (m.value || '').slice(0, -1); render(); }
+  function kbdShift() { const m = state.modal; m.shift = !m.shift; render(); }
+  function kbdOk() { const m = state.modal; state.settingsDraft[m.key] = m.value.trim(); state.modal = null; render(); }
 
   /* ---- historique ---- */
   function buildHistoryRows(sessions, events) {
@@ -700,13 +835,12 @@
   }
 
   async function saveSettings() {
-    const patch = {};
-    $$('[data-setting]').forEach(inp => { patch[inp.dataset.setting] = inp.type === 'number' ? parseFloat(inp.value) : inp.value; });
+    const patch = { ...state.settingsDraft };
     const tg = $('#snackToggle'); if (tg) patch.snack_enabled = tg.classList.contains('on');
-    try { state.settings = await API.post('/api/settings', patch); toast('Réglages enregistrés', 'green'); render(); }
+    try { state.settings = await API.post('/api/settings', patch); state.settingsDraft = { ...state.settings }; toast('Réglages enregistrés', 'green'); render(); }
     catch (e) { toast('Échec de l’enregistrement', 'coral'); }
   }
-  function toggleSnackSetting(node) { node.classList.toggle('on'); const lbl = $('#snackLbl'); if (lbl) lbl.textContent = node.classList.contains('on') ? 'Activé' : 'Désactivé'; }
+  function toggleSnackSetting(node) { node.classList.toggle('on'); state.settingsDraft.snack_enabled = node.classList.contains('on'); const lbl = $('#snackLbl'); if (lbl) lbl.textContent = node.classList.contains('on') ? 'Activé' : 'Désactivé'; }
   function exportCsv() { const a = document.createElement('a'); a.href = '/api/export.csv?days=90'; a.download = ''; document.body.appendChild(a); a.click(); a.remove(); toast('Export CSV (90 jours)', 'coral'); }
 
   async function openHistory() {
@@ -734,7 +868,7 @@
       case 'snack': openSnack(); break;
       case 'alarm': openEvent(arg); break;
       case 'cancel': askCancel(arg); break;
-      case 'settings': state.view = 'settings'; render(); poke(); break;
+      case 'settings': state.settingsDraft = { ...state.settings }; state.view = 'settings'; render(); poke(); break;
       case 'back': state.view = 'main'; render(); poke(); break;
       case 'history': openHistory(); break;
       case 'history-back': state.view = 'settings'; render(); poke(); break;
@@ -752,6 +886,13 @@
       case 'saveSettings': saveSettings(); break;
       case 'snackToggle': toggleSnackSetting(node); break;
       case 'exportCsv': exportCsv(); break;
+      case 'setField': openPicker(node.dataset.key); break;
+      case 'wheelTap': wheelTap(node); break;
+      case 'wheelValidate': wheelValidate(); break;
+      case 'kbdKey': kbdKey(node.dataset.k); break;
+      case 'kbdBack': kbdBack(); break;
+      case 'kbdShift': kbdShift(); break;
+      case 'kbdOk': kbdOk(); break;
       case 'wake': wake(); break;
     }
     poke();
@@ -822,7 +963,7 @@
     state.qa = !!(state.preview || state.qaView || state.qaModal || nowM || state.qaSaver);
   }
   async function applyQA() {
-    if (state.qaView === 'settings') state.view = 'settings';
+    if (state.qaView === 'settings') { state.settingsDraft = { ...state.settings }; state.view = 'settings'; }
     else if (state.qaView === 'history') {
       try { const [s, e] = await Promise.all([API.get('/api/sessions?days=30'), API.get('/api/events?days=30')]); state.historyRows = buildHistoryRows(s, e); } catch (_) { }
       state.view = 'history';
@@ -839,6 +980,10 @@
       if (q.get('sev')) state.modal.sev = q.get('sev');
     }
     else if (md === 'analysis') state.modal = { type: 'analysis', event: { type: 'hypo', glucose_mgdl: 48 }, phase: 'result', res: DEMO_ANALYSIS };
+    // QA pickers : ?view=settings&pick=KEY (roue) ou &kbd=KEY (clavier)
+    const q2 = new URLSearchParams(location.search);
+    if (state.qaView === 'settings' && q2.get('pick')) openPicker(q2.get('pick'));
+    if (state.qaView === 'settings' && q2.get('kbd')) openPicker(q2.get('kbd'));
     if (state.qaSaver) state.saver = true;
   }
   async function init() {

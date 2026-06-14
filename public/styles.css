@@ -212,6 +212,35 @@ body.kiosk .device{border-radius:0;box-shadow:none;}
 .set-f .val input{flex:1 1 auto;min-width:0;border:none;background:transparent;font-family:inherit;font-weight:600;font-size:16px;color:inherit;outline:none;padding:0;-webkit-appearance:none;appearance:none;}
 .set-f .val input::-webkit-outer-spin-button,.set-f .val input::-webkit-inner-spin-button{opacity:.5;height:24px;}
 .set-f .val.ro{color:var(--dim);background:var(--cream);}
+.set-f .val.tap span:first-child{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+/* ---- roue iPhone (picker) ---- */
+.picker{position:relative;display:flex;flex-direction:column;align-items:center;width:100%;}
+.pick-wheels{display:flex;gap:10px;align-items:stretch;position:relative;}
+.pick-band{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(440px,90%);height:54px;border-radius:14px;background:var(--coral-tint);border:2px solid var(--coral);pointer-events:none;z-index:0;}
+.wheel{height:270px;overflow-y:scroll;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;text-align:center;position:relative;z-index:1;min-width:96px;}
+.wheel::-webkit-scrollbar{display:none;}
+.wheel .pad{height:108px;}
+.wheel .opt{height:54px;line-height:54px;scroll-snap-align:center;font-size:30px;font-weight:600;color:#bcae98;transition:color .12s,transform .12s,opacity .12s;}
+.wheel .opt.sel{color:var(--ink);font-size:34px;font-weight:700;}
+.wheel-sep{display:flex;align-items:center;font-size:34px;font-weight:700;color:var(--ink);z-index:1;}
+.pick-unit{margin-top:10px;font-size:18px;font-weight:600;color:var(--dim);}
+
+/* ---- clavier AZERTY tactile (compact pour tenir en 480px) ---- */
+.sheet.kbd-sheet .sheet-head{padding:8px 20px 2px;}
+.kbd-disp{flex:0 0 auto;margin:0 20px 4px;min-height:44px;background:#fff;border:2px solid var(--line);border-radius:12px;display:flex;align-items:center;padding:0 14px;font-size:24px;font-weight:600;gap:2px;overflow:hidden;}
+.kbd-disp i{color:var(--dim);font-style:normal;}
+.kbd-disp .caret{width:3px;height:26px;background:var(--coral);animation:blink 1s step-end infinite;}
+@keyframes blink{50%{opacity:0}}
+.kbd{flex:0 0 auto;display:flex;flex-direction:column;gap:5px;padding:2px 10px 0;}
+.krow{display:flex;gap:5px;justify-content:center;}
+.key{flex:1 1 0;min-width:0;height:46px;border-radius:10px;border:2px solid var(--line);background:#fff;font-family:inherit;font-size:20px;font-weight:600;color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.key:active{transform:scale(.94);background:var(--cream);}
+.key.on{background:var(--ink);color:#fff;border-color:var(--ink);}
+.key.wide{flex:1.4 1 0;font-size:19px;}
+.key.spc{flex:4 1 0;font-size:14px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;}
+.sheet.kbd-sheet .sheet-foot{padding:8px 20px 10px;}
+.sheet.kbd-sheet .sheet-foot .btn{min-height:46px;font-size:18px;}
 .toggle{width:44px;height:25px;border-radius:99px;background:var(--line);position:relative;flex:0 0 auto;cursor:pointer;transition:background .15s;}
 .toggle.on{background:var(--green);}
 .toggle i{position:absolute;top:2px;left:2px;width:21px;height:21px;border-radius:50%;background:#fff;transition:left .15s;}
