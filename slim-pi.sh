@@ -61,27 +61,18 @@ KIOSK
 chmod +x "$APP_DIR/kiosk-cage.sh"
 ok "kiosk-cage.sh (cog)"
 
-# ── 4b) Curseur invisible : thème "blank" (curseur Xcursor 1x1 transparent) ─
-# Le CSS `cursor:none` masque le curseur DANS la page, mais cage en dessine un
-# au contact tactile. On neutralise via un thème de curseur vide, généré en
-# Python pur (xcursorgen n'existe pas en paquet sur Debian trixie).
-say "Curseur invisible (thème blank)"
-mkdir -p "$HOME/.icons/blank/cursors"
-python3 - <<'PY' 2>/dev/null && ok "thème curseur 'blank' généré" || warn "python3 indisponible — curseur cage peut rester (cosmétique)"
-import struct, os
-p = os.path.expanduser("~/.icons/blank/cursors/left_ptr")
-data  = b'Xcur' + struct.pack('<III', 16, 1, 1)
-data += struct.pack('<III', 0xfffd0002, 1, 28)
-data += struct.pack('<IIIII', 36, 0xfffd0002, 1, 1, 0)
-data += struct.pack('<IIIII', 1, 1, 0, 0, 0)
-data += struct.pack('<I', 0)
-open(p,'wb').write(data)
-for c in ["default","arrow","pointer","hand1","hand2","xterm","text","watch","crosshair"]:
-    d = os.path.expanduser("~/.icons/blank/cursors/"+c)
-    if os.path.lexists(d): os.remove(d)
-    os.symlink("left_ptr", d)
-open(os.path.expanduser("~/.icons/blank/index.theme"),"w").write("[Icon Theme]\nName=blank\n")
-PY
+# ── 4b) Curseur invisible (écran tactile) ──────────────────────────────────
+# cage dessine un curseur au centre même sans souris, et ignore les thèmes vides.
+# La seule méthode fiable sur Pi (cf. forum RaspberryPi) : neutraliser le fichier
+# de curseur "left_ptr" de TOUS les thèmes système → cage ne le trouve plus.
+# (Le CSS `cursor:none` de l'app gère le curseur DANS la page ; ceci gère celui
+#  du compositeur. Les deux sont complémentaires.)
+say "Curseur invisible (neutralisation left_ptr)"
+CUR_N=0
+for f in /usr/share/icons/*/cursors/left_ptr; do
+  if [ -e "$f" ] && [ ! -e "$f.bak" ]; then sudo mv "$f" "$f.bak" && CUR_N=$((CUR_N+1)); fi
+done
+ok "curseurs système neutralisés ($CUR_N) — restauration : *.bak"
 
 # ── 5) Auto-login sur tty1 + lancement de cage depuis le profil ─────────
 # Méthode robuste sur Pi : getty connecte "ziwa" automatiquement sur tty1, ce
@@ -109,7 +100,6 @@ cat >> "$PROFILE" <<PROF
 
 # ZIWA_KIOSK — lancer le kiosque uniquement sur la console physique (tty1)
 if [ "\$(tty)" = "/dev/tty1" ] && [ -z "\${WAYLAND_DISPLAY:-}" ]; then
-  export XCURSOR_THEME=blank XCURSOR_PATH=\$HOME/.icons:/usr/share/icons
   exec cage -s -- "$APP_DIR/kiosk-cage.sh"
 fi
 PROF
@@ -131,4 +121,5 @@ echo
 echo "  POUR REVENIR EN ARRIÈRE (rebureau complet) :"
 echo "    sudo rm /etc/systemd/system/getty@tty1.service.d/autologin.conf"
 echo "    sed -i '/ZIWA_KIOSK/,+3d' ~/.bash_profile"
+echo "    for f in /usr/share/icons/*/cursors/left_ptr.bak; do sudo mv \"\$f\" \"\${f%.bak}\"; done   # restaurer curseur"
 echo "    sudo systemctl set-default graphical.target && sudo reboot"
