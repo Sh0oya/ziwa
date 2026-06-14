@@ -15,6 +15,8 @@
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body{height:100%;}
+/* Kiosque tactile : aucun curseur visible dans toute l'app (le doigt suffit). */
+*{cursor:none !important;}
 body{font-family:'Fredoka',system-ui,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;background:#16130f;overflow:hidden;}
 .script{font-family:'Caveat',cursive;font-weight:700;line-height:.9;}
 button{font-family:inherit;}

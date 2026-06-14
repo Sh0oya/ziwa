@@ -61,23 +61,8 @@ KIOSK
 chmod +x "$APP_DIR/kiosk-cage.sh"
 ok "kiosk-cage.sh (cog)"
 
-# ── 4b) Curseur invisible : thème de curseur 100% transparent ───────────
-# Sous cage/Wayland, unclutter et XCURSOR_SIZE=0 ne suffisent pas. La méthode
-# fiable est un thème "blank" dont tous les curseurs pointent vers un PNG 1x1
-# transparent. cage l'utilise via XCURSOR_THEME=blank.
-say "Curseur invisible (thème blank)"
-if ! command -v xcursorgen >/dev/null 2>&1; then sudo apt-get install -y xcursorgen >/dev/null 2>&1 || true; fi
-BLANK="$HOME/.icons/blank/cursors"
-mkdir -p "$BLANK"
-echo 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=' | base64 -d > /tmp/_blank.png
-echo "1 0 0 /tmp/_blank.png" > /tmp/_blank.conf
-if command -v xcursorgen >/dev/null 2>&1 && xcursorgen /tmp/_blank.conf "$BLANK/left_ptr" 2>/dev/null; then
-  ( cd "$BLANK" && for c in default arrow top_left_arrow pointer hand1 hand2 xterm text watch; do ln -sf left_ptr "$c"; done )
-  printf '[Icon Theme]\nName=blank\n' > "$HOME/.icons/blank/index.theme"
-  ok "thème curseur 'blank' généré"
-else
-  warn "xcursorgen indisponible — curseur peut rester visible (non bloquant)"
-fi
+# Note : le curseur est masqué côté app via `* { cursor: none }` dans styles.css
+# (cog affiche l'app en plein écran → curseur invisible partout). Simple et fiable.
 
 # ── 5) Auto-login sur tty1 + lancement de cage depuis le profil ─────────
 # Méthode robuste sur Pi : getty connecte "ziwa" automatiquement sur tty1, ce
@@ -106,7 +91,6 @@ cat >> "$PROFILE" <<PROF
 
 # ZIWA_KIOSK — lancer le kiosque uniquement sur la console physique (tty1)
 if [ "\$(tty)" = "/dev/tty1" ] && [ -z "\${WAYLAND_DISPLAY:-}" ]; then
-  export XCURSOR_THEME=blank XCURSOR_SIZE=24
   exec cage -s -- "$APP_DIR/kiosk-cage.sh"
 fi
 PROF
